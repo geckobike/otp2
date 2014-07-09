@@ -1,0 +1,10 @@
+Exception: STATUS_STACK_OVERFLOW at eip=00401297
+eax=000A1854 ebx=00000000 ecx=00032CE4 edx=0000004C esi=611021A0 edi=00401564
+ebp=0022CCE8 esp=0022CCDC program=d:\programming\gluts\sort\test.exe, pid 5132, thread main
+cs=0023 ds=002B es=002B fs=0053 gs=002B ss=002B
+Stack trace:
+Frame     Function  Args
+0022CCE8  00401297  (00000001, 6116AF50, 00BF0090, 0022CC80)
+0022CD98  610060D8  (00000000, 0022CDD0, 61005450, 0022CDD0)
+61005450  61004416  (0000009C, A02404C7, E8611021, FFFFFF48)
+      4 [main] test 5132 _cygtls::handle_exceptions: Error while dumping state (probably corrupted stack)

@@ -1,0 +1,762 @@
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#define ENABLE_TIMER
+#include "engine/engine.h"
+#include <assert.h>
+
+#include <GL/gl.h>
+#include <GL/glut.h>
+
+#include "springs.h"
+
+#ifdef _MSC_VER
+#pragma warning(disable:4244 4305)  // for VC++, no precision loss complaints
+#endif
+
+#define clampf(x,min,max) ((x) < (min)) ? (min) : ( (x) > (max) ? (max) : x )
+
+static int s_width = 480 * 2;
+static int s_height = 320 * 2;
+
+static bool s_paused = false;
+static float s_averageDt = 0.f;
+
+#define XYZ(v) (v).x, (v).y, (v).z
+#define XYZp(v) (v)->x, (v)->y, (v)->z
+
+static void drawCircle(float x, float y, float r, bool filled = true);
+
+//======================================================================================================================================================
+//======================================================================================================================================================
+
+static Timer g_time;
+
+static void dlDrawLine(const vec3* from, const vec3* to)
+{
+	glBegin(GL_LINES);
+	glVertex3f(from->x, from->y, from->z);
+	glVertex3f(to->x, to->y, to->z);
+	glEnd();
+}
+
+static void drawCircle(float x, float y, float r, bool filled)
+{
+    u32 N = 20;
+    float dAlpha = PIx2 / (float)N;
+    float a = 0.0f;
+    filled ? glBegin(GL_POLYGON) : glBegin(GL_LINE_STRIP);
+	for (u32 i=0; i<(N+1); i++)
+	{
+	    glVertex3f(x+r*cosf(a), y+r*sinf(a), 0.f);
+	    a += dAlpha;
+	}
+    glEnd();
+}
+
+static const float drawEps = 0.003f;
+
+static void drawPoint(float x, float y, float size = drawEps)
+{
+    glBegin(GL_QUADS);
+	glVertex3f(x-size, y-size, 0.f);
+	glVertex3f(x-size, y+size, 0.f);
+	glVertex3f(x+size, y+size, 0.f);
+	glVertex3f(x+size, y-size, 0.f);
+    glEnd();
+}
+
+static inline void addImpulseAtOffset(vec3* vel, vec3* angVel, float invMass, float invInertia, const vec3* offset, const vec3* impulse)
+{
+    vec3 tmp;
+	vecaddscale(vel, vel, impulse, invMass);
+    veccross(&tmp, offset, impulse);
+	vecscale(&tmp, &tmp, invInertia);
+	vecadd(angVel, angVel, &tmp);
+}
+
+static inline float getSpringForce(float x, float vel, float dt, float mass, float spring, float damp)
+{
+	float a = spring * dt;
+	return - mass * (spring * x + (a + damp) * vel) / (mass  + dt * (a + damp) );
+}
+
+static inline float getRestingSpring(float x, float gravity, float dt, float mass, float damp)
+{
+	// Calc spring constant
+	return (mass * gravity + damp * gravity * dt) / (gravity*dt*dt + x);
+}
+
+//======================================================================================================================================================
+//======================================================================================================================================================
+
+struct Wheel;
+struct Chassis;
+
+struct Suspension
+{
+    Chassis* chassis;
+	Wheel* wheel;
+
+	vec3 offset;			// Local to the chassis (this is the top of the suspension spring, and should be inside the chassis' collision geom)
+
+	float spring;			// This will be calculated from the rest len
+	float damp;
+
+	float travelMin;
+	float travelMax;
+	float linetestLength;
+
+	// Calculated each frame
+	vec3 axis;
+
+	// Linetest
+	float height;
+	float prevHeight;
+};
+
+
+struct Wheel
+{
+	Suspension* suspension;
+
+    float mass;					// Doesn't really matter!
+
+	// Determined each frame
+	vec3 pos;
+};
+
+struct Chassis
+{
+	Suspension* suspension[2];
+
+    float mass;
+	float inertia;
+
+	mtx pose;
+	vec3 vel;
+	float angVel;
+
+	vec3 lastImpulse;
+	vec3 lastTorque;
+};
+
+const int numWheels = 2;
+static Chassis s_chassis;
+static Wheel s_wheel[numWheels];
+static Suspension s_suspension[numWheels];
+static float gravity = 10.f;
+
+static void suspensionDraw(Suspension* s)
+{
+	Chassis* c = s->chassis;
+	const vec3* x = &c->pose.v[0].v3;
+	const vec3* y = &c->pose.v[1].v3;
+	const vec3* z = &c->pose.v[2].v3;
+	const vec3* chassisPos = &c->pose.v[3].v3;
+
+	float cx = chassisPos->x;
+	float cy = chassisPos->y;
+	float cz = chassisPos->z;
+
+	Wheel* w = s->wheel;
+	float wx = w->pos.x;
+	float wy = w->pos.y;
+	float wz = w->pos.z;
+
+	vec3 point;
+	vec3mtx43mulvec3(&point, &c->pose, &s->offset);
+	
+	glColor4f(0,0,1,1);
+	drawCircle(point.x, point.z, 0.02f);
+
+	vec3 minPoint, maxPoint;
+	vecaddscale(&minPoint, &point, z, +s->travelMin);
+	vecaddscale(&maxPoint, &point, z, -s->travelMax);
+
+	glColor4f(1,0,0,1);
+	drawCircle(minPoint.x, minPoint.z, 0.02f);
+	glColor4f(1,0,0,1);
+	drawCircle(maxPoint.x, maxPoint.z, 0.02f);
+
+	glColor4f(1,1,1,1);
+	drawCircle(wx, wz, 0.05f);
+}
+
+static void vehicleDraw()
+{
+	Chassis* c = &s_chassis;
+
+	vec3* x = &c->pose.v[0].v3;
+	vec3* y = &c->pose.v[1].v3;
+	vec3* z = &c->pose.v[2].v3;
+	vec3* chassisPos = &c->pose.v[3].v3;
+
+	float cx = chassisPos->x;
+	float cy = chassisPos->y;
+	float cz = chassisPos->z;
+
+	vec3 a, b;
+	vecaddscale(&a, chassisPos, x, -0.5f);
+	vecaddscale(&b, chassisPos, x, +0.5f);
+
+
+	glColor4f(1,1,1,1);
+	drawCircle(cx, cz, 0.1f);
+	glBegin(GL_LINES);
+	glVertex3f(a.x, a.z, 0.f);
+	glVertex3f(b.x, b.z, 0.f);
+	glEnd();
+
+	suspensionDraw(c->suspension[0]);
+	suspensionDraw(c->suspension[1]);
+}
+
+static float linetest(const vec3* pos, const vec3* dir)
+{
+	float dot = -dir->z;
+	if (dot>0.f)
+	{
+		return pos->z / dot;
+	}
+	else
+	{
+		return 1000.f;
+	}
+}
+
+static vec3 getPointVel(Chassis* c, Suspension* s)
+{
+	Vec3 v;
+	vec3 angVel = {0.f, c->angVel, 0.f};
+	vec3 offset;
+	vec3mtx33mulvec3(&offset, &c->pose, &s->offset);
+	veccross(&v, &angVel, &offset);
+	vecadd(&v, &v, &c->vel);
+	return v;
+}
+
+static bool g_step = true;
+
+static void vehicleSubTick(Chassis* c, float dt)
+{
+	if (!g_step) return;
+
+	const int numIterations = 10;
+	const float invIterations = 1.f/(float)(numIterations);
+		
+	// This bit is done by the physics engine
+	if(1)
+	{
+		s_chassis.vel.z -= gravity*dt;
+		{
+			// Run Solver 
+		}
+		vec3* chassisPos = &s_chassis.pose.v[3].v3;
+		vec3* x = &s_chassis.pose.v[0].v3;
+		vec3* y = &s_chassis.pose.v[1].v3;
+		vec3* z = &s_chassis.pose.v[2].v3;
+		vecaddscale(chassisPos, chassisPos, &s_chassis.vel, dt);
+
+		// Rotate
+		float angVel = s_chassis.angVel;
+		float c = cosf(dt*angVel);
+		float s = sinf(dt*angVel);
+		vec3 tmpX = *x;
+		vec3 tmpY = *y;
+		vec3 tmpZ = *z;
+		vecscale(z, &tmpZ, c);
+		vecaddscale(z, z, &tmpX, s);	// this doesn't seem the correct way around!
+		vecscale(x, &tmpX, c);
+		vecaddscale(x, x, &tmpZ, -s);
+	}
+
+	// Add our own gravity to help with collision calculations
+	// Remove gravity after the process
+	//s_chassis.vel.z -= gravity*dt;
+
+	c->angVel *= expf(-10.f*dt);
+	c->vel.x *= expf(-100.f*dt);
+
+	for (int i=0; i<numWheels; i++)
+	{
+		Suspension* s = c->suspension[i];
+		Wheel* w = s->wheel;
+
+		// Update the suspension axis
+		s->axis = c->pose.v[2].v3;
+
+		if (s->height > s->travelMax)
+		{
+			s->height = s->travelMax;
+		}
+		if (s->height < -s->travelMin)
+		{
+			s->height = -s->travelMin;
+		}
+		vec3 point;
+		vec3mtx43mulvec3(&point, &c->pose, &s->offset);
+		vecaddscale(&w->pos, &point, &s->axis, -s->height);
+		//printf("compression = %f\n", s->compression);
+	}
+
+	vec3 extraVel={0.f, 0.f, 0.f};
+	vec3 extraAngVel={0.f, 0.f, 0.f};
+	
+	//c->angVel -= c->lastTorque.y;
+
+	for (int i=0; i<numWheels; i++)
+	{
+		Suspension* s = c->suspension[i];
+		Wheel* w = s->wheel;
+		const vec3* axis = &s->axis;
+
+		// Linetest
+		vec3 pos;
+		vec3 dir;
+		vecneg(&dir, axis);
+		vec3mtx43mulvec3(&pos, &c->pose, &s->offset);
+		vecaddscale(&pos, &pos, axis, s->linetestLength);
+		s->height = linetest(&pos, &dir) - s->linetestLength;	// Height the chassis point is above the ground
+		if (s->height <= s->travelMax)
+		{
+			vec3 offset;
+			vec3mtx33mulvec3(&offset, &c->pose, &s->offset);
+			printf("%f %f %f\n", XYZ(s->offset));
+			{
+				float damp = 5.f * c->mass;
+				float spring = getRestingSpring(s->travelMax, gravity, dt, c->mass, damp);
+				float x = s->height - s->travelMax;
+				float force = getSpringForce(x, vecdot(&c->vel, &s->axis), dt, c->mass, spring, damp) * (1.f/(float)(numWheels));	// VEL IS WRONG HERE!
+				vec3 impulse;
+				vecscale(&impulse, &s->axis, force*dt);
+				addImpulseAtOffset(&extraVel, &extraAngVel, 1.f/c->mass, 1.f/c->inertia, &offset, &impulse);
+			}
+		}
+	}
+
+	vecadd(&c->vel, &c->vel, &extraVel);
+	c->angVel += extraAngVel.y;
+	c->lastTorque.y = extraAngVel.y;
+
+	printf("angVel = %f\n", c->angVel);
+
+	for (int i=0; i<numWheels; i++)
+	{
+		Suspension* s = c->suspension[i];
+		vec3 angVel = {0.f, c->angVel, 0.f};
+		vec3 offset;
+		vec3mtx33mulvec3(&offset, &c->pose, &s->offset);
+		vec3 v;
+		veccross(&v, &angVel, &offset);
+		vecadd(&v, &v, &c->vel);
+		float speed = vecdot(&s->axis, &v);
+		if (speed<-1.f) speed = -1.f;
+		s->height = s->height + speed *dt;
+	}
+
+	for (int i=0; i<numWheels; i++)
+	{
+		Suspension* s = c->suspension[i];
+		s->prevHeight = s->height;
+	}
+
+	// Subtract gravity, since the physics engine will do it as well
+	//s_chassis.vel.z += gravity*dt;
+
+	//g_step = false;
+}
+
+#if 0
+// static void vehicleSubTick(Chassis* c, float dt)
+// {
+// 	const int numIterations = 1;
+// 	const float invIterations = 1.f/(float)(numIterations);
+// 		
+// 	// This bit is done by the physics engine
+// 	{
+// 		s_chassis.vel.z -= gravity*dt;
+// 		{
+// 			// Run Solver 
+// 		}
+// 		vec3* chassisPos = &s_chassis.pose.v[3].v3;
+// 		vecaddscale(chassisPos, chassisPos, &s_chassis.vel, dt);
+// 	}
+// 
+// 	for (int i=0; i<numWheels; i++)
+// 	{
+// 		Suspension* s = c->suspension[i];
+// 		Wheel* w = s->wheel;
+// 
+// 		// Update the suspension axis
+// 		s->axis = c->pose.v[2].v3;
+// 
+// 		// Update compression
+// 		s->compression += (s->vel - vecdot(&c->vel, &s->axis)) * dt;
+// 	
+// 		// Update the wheel pos
+// 		vec3 point;
+// 		vec3mtx43mulvec3(&point, &c->pose, &s->offset);
+// 		vecaddscale(&w->pos, &point, &s->axis, s->compression - s->startingCompression);
+// 		//printf("compression = %f\n", s->compression);
+// 	}
+// 		
+// 	// Add our own gravity to help with collision calculations
+// 	// Remove gravity after the process
+// 	s_chassis.vel.z -= gravity*dt;
+// 
+// 	for (int i=0; i<numWheels; i++)
+// 	{
+// 		Suspension* s = c->suspension[i];
+// 		Wheel* w = s->wheel;
+// 		const vec3* axis = &s->axis;
+// 
+// 		// Linetest
+// 		vec3 pos;
+// 		vec3 dir;
+// 		vecneg(&dir, axis);
+// 		vec3mtx43mulvec3(&pos, &c->pose, &s->offset);
+// 		vecaddscale(&pos, &pos, axis, s->linetestLength - s->startingCompression);
+// 		s->hitDistance = s->linetestLength - linetest(&pos, &dir);		// Note hit distance measured from the lower end tip of the suspension, like compression
+// 
+// 		//// Add gravity
+// 		//s->vel -= (gravity) * axis->z * dt;		// NB this is the world velocity projected onto the axis
+// 
+// 		float chassisInlineSpeed = vecdot(axis, &c->vel);
+// 
+// 		// Calc the force/velocity that the spring will apply
+// 		float dv = s->vel - chassisInlineSpeed;
+// 		float requiredVelocity = physicsSpringGetVelocity(s->compression, dv, dt, s->spring, s->damp);	// This is not technically correct, but will do!
+// 
+// 		// Do we hit the ground? Work out the time spent in contact with the ground, and the time spent without contact with the ground
+// 		float collisionDistance = s->compression - s->hitDistance;	// The distance the wheel must move to hit the ground
+// 		if (collisionDistance < 0.f) collisionDistance = 0.f;
+// 		float wheelSpeed = s->vel + requiredVelocity - dv;
+// 		float timeNoCollision;
+// 		if (wheelSpeed >= 0.f)					// There's a lot of ifs here!
+// 		{
+// 			timeNoCollision = dt;
+// 		}
+// 		else
+// 		{
+// 			timeNoCollision = -(collisionDistance / wheelSpeed);
+// 		}
+// 		if (timeNoCollision > dt) timeNoCollision = dt;
+// 		const float timeInCollision = dt - timeNoCollision;
+// 
+// 		//printf("dv = %f, requiredVelocity = %f, wheelSpeed = %f\n", dv, requiredVelocity, wheelSpeed);
+// 		//printf("hitDistance = %f, compression = %f, collisionDistance = %f\n", s->hitDistance, s->compression, collisionDistance);
+// 		//printf("timeNoCollision = %f, timeInCollision = %f, dt = %f\n", timeNoCollision, timeInCollision, dt);
+// 
+// 		// Finally work out how much to push the wheel and chassis by
+// 		const float correctionSpeed = (requiredVelocity - dv);
+// 		const float velocityCorrectionChassis = -correctionSpeed * invIterations * (timeInCollision/dt);
+// 		const float velocityCorrectionWheel = correctionSpeed * invIterations * (timeNoCollision/dt);
+// 
+// 		// Iterate (TODO: surely iteration doesn't want to be here!)
+// 		float collisionError = 0.f;
+// 		for (int repeat = 0; repeat < numIterations; repeat++)
+// 		{
+// 			// Apply the spring
+// 			if (1)
+// 			{
+// 				vecaddscale(&c->vel, &c->vel, axis, velocityCorrectionChassis);
+// 				s->vel += velocityCorrectionWheel;
+// 			}
+// 
+// 			// Clamp the spring
+// 			float compressionError = 0.f;
+// 			if (1)
+// 			{
+// 				// Could do this differently and better!
+// 				float compression2 = s->compression - (vecdot(&c->vel, axis) * dt) + (s->vel * dt);
+// 				if (compression2>s->maxCompression)
+// 				{
+// 					compressionError = (compression2 - s->maxCompression) / dt;
+// 				}
+// 				if (compression2<s->minCompression)
+// 				{
+// 					compressionError = (compression2 - s->minCompression) / dt;
+// 				}
+// 
+// 				// Add to chassis, subtract from wheel
+// 				// dv = impulse / m;
+// 				float denom = 1.f/c->mass + 1.f/w->mass;
+// 				float correctionImpulse = compressionError / denom;
+// 
+// 				vecaddscale(&c->vel, &c->vel, axis, correctionImpulse / c->mass);
+// 				s->vel -= correctionImpulse / w->mass;
+// 			}
+// 
+// 			// Ground collision
+// 			if (1)
+// 			{
+// 				collisionError = s->hitDistance - s->compression - s->vel*dt;
+// 				if (collisionError < 0.f) collisionError = 0.f;
+// 
+// 				//printf("collisionError = %f\n", collisionError);
+// 
+// 				collisionError = collisionError / dt;
+// 
+// 				s->vel += collisionError;
+// 				if (compressionError>0.f)
+// 				{
+// 					vecaddscale(&c->vel, &c->vel, axis, collisionError);
+// 				}
+// 			}
+// 		}
+// 	}
+// 
+// 	// Subtract gravity, since the physics engine will do it as well
+// 	s_chassis.vel.z += gravity*dt;
+// }
+#endif
+
+
+static void vehicleSubTick(float dt)
+{
+	vehicleSubTick(&s_chassis, dt);
+}
+
+const float subDt = 1.0/30.f;//0.01f;
+
+static void vehicleTick(float dt)
+{
+	// Make this more like a physics engine with a "passive"
+	// callback function
+
+	// Fixed time step integration
+	static float remaining = 0.f;
+	remaining += dt;
+	while (remaining>0.f)
+	{
+		remaining -= subDt;
+		vehicleSubTick(subDt);
+	}
+}
+
+static void wheelReset(Wheel* w, const vec3* pos)
+{
+	w->mass = 1.f;
+	w->pos = *pos;
+}
+
+static void suspensionReset(Suspension* s, const vec3* offset)
+{
+	s->offset.x = s->wheel->pos.x;
+	s->offset.y = s->wheel->pos.y;
+	s->offset.z = offset->z;
+	
+	const float travelMax = 0.2f;
+	const float travelMin = 0.2f;
+
+	s->travelMin = travelMin;
+	s->travelMax = travelMax;
+
+	s->spring = 10.f;
+	s->damp = 1.1f;
+
+	s->linetestLength = 1.f;
+	s->height = 0.f;
+	s->prevHeight = 0.f;
+
+	vecset(&s->axis, 0.f, 0.f, 1.f);
+}
+
+static void vehicleReset(Chassis* chassis)
+{
+	Chassis* c = chassis;
+	
+	const float wheelOffset = 0.5f;
+
+	//================
+	// Reset chassis
+	//================
+	c->mass = 10.f;
+	c->inertia = c->mass;
+	matrixIdent(&c->pose);
+	vecset(&c->pose.v[3].v3, 0.f, 0.f, wheelOffset);
+	veczero(&c->vel);
+	c->angVel = 0.f;
+	veczero(&c->lastImpulse);
+	veczero(&c->lastTorque);
+
+	//=================
+	// Position Wheels
+	//=================
+	vec3 wpos0 = {+2.f, 0.f, 0.f};
+	vec3 wpos1 = {-2.f, 0.f, 0.f};
+	wheelReset(c->suspension[0]->wheel, &wpos0);
+	wheelReset(c->suspension[1]->wheel, &wpos1);
+	
+	//==================
+	// Reset suspension
+	//==================
+	vec3 offset0 = {+2.f, 0.f, -wheelOffset};
+	vec3 offset1 = {-2.f, 0.f, -wheelOffset};
+	
+	suspensionReset(c->suspension[0], &offset0);
+	suspensionReset(c->suspension[1], &offset1);
+
+	//=======================
+	// Auto balance stiffness
+	//=======================
+
+	for (int i=0; i<numWheels; i++)
+	{
+		Suspension* s = c->suspension[i];
+		s->spring *= 1.f/(float)numWheels;
+	}
+}
+
+static void vehicleReset()
+{
+	// Set up the pointers
+	s_chassis.suspension[0] = &s_suspension[0];
+	s_chassis.suspension[1] = &s_suspension[1];
+	s_suspension[0].chassis = &s_chassis;
+	s_suspension[1].chassis = &s_chassis;
+
+	s_suspension[0].wheel = &s_wheel[0];
+	s_suspension[1].wheel = &s_wheel[1];
+	s_wheel[0].suspension = &s_suspension[0];
+	s_wheel[1].suspension = &s_suspension[1];
+
+	vehicleReset(&s_chassis);
+}
+
+static void vehicleInit()
+{
+	vehicleReset();
+}
+
+
+
+//======================================================================================================================================================
+//======================================================================================================================================================
+
+static void keyboard(unsigned char key, int x, int y)
+{
+	Chassis* c = &s_chassis;
+	if (key=='r') vehicleReset();
+	if (key==27) exit(0);
+	if (key==' ')
+	{
+		c->vel.z = 5.f;
+	}
+	if (key=='z')
+	{
+		c->angVel = 1.f;
+	}
+	if (key=='s') g_step = true;
+}
+
+static void animateScene ()
+{
+	float dt = timerGetTickSinceLastUUpdate(&g_time);
+	timerUpdate(&g_time);
+
+	vehicleTick(dt);
+
+    glutPostRedisplay();
+}
+
+static void display()
+{
+    // clear the window
+    glClearColor (0.3,0.3,0.3,0);
+    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // go to GL_MODELVIEW matrix mode and set the camera
+    glMatrixMode (GL_MODELVIEW);
+    glLoadIdentity();
+
+    // leave openGL in a known state - flat shaded white, no textures
+    glDisable (GL_TEXTURE_2D);
+    glShadeModel (GL_FLAT);
+    glDisable (GL_DEPTH_TEST);
+    glDepthFunc (GL_LESS);
+    
+    glTranslatef(0.f, -2.f, -5.5f);
+
+	// Draw the Ground Plane (2D)
+    glColor4f (1.f,1.f,1.f,1.f);
+	glBegin(GL_LINES);
+		glVertex3f(-20.f,0.f,0.f);
+		glVertex3f(+20.f,0.f,0.f);
+	glEnd();
+
+	vehicleDraw();
+    
+    glutSwapBuffers();
+}
+
+static void reshape(GLint width, GLint height)
+{
+    s_width = width;
+    s_height = height;
+    
+    // setup viewport
+    glViewport (0,0,s_width,s_height);
+    glMatrixMode (GL_PROJECTION);
+    glLoadIdentity();
+    const float vnear = 0.1f;
+    const float vfar = 100.0f;
+    const float k = 0.8f;     // view scale, 1 = +/- 45 degrees
+    if (s_width >= s_height) {
+	float k2 = float(s_height)/float(s_width);
+	glFrustum (-vnear*k,vnear*k,-vnear*k*k2,vnear*k*k2,vnear,vfar);
+    }
+    else {
+	float k2 = float(s_width)/float(s_height);
+	glFrustum (-vnear*k*k2,vnear*k*k2,-vnear*k,vnear*k,vnear,vfar);
+    }
+
+}
+
+static void initGraphics()
+{
+}
+
+static void mouseButton(int button, int state, int x, int y)
+{
+}
+
+static void mouseMotion(int x, int y)
+{
+}
+
+
+int main (int argc, char **argv)
+{
+	timerUpdate(&g_time);
+    vehicleInit();
+
+    // GLUT Window Initialization:
+    glutInit (&argc, argv);
+    glutInitWindowSize (s_width, s_height);
+    glutInitDisplayMode ( GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+    glutCreateWindow ("CS248 GLUT example");
+
+    // Initialize OpenGL graphics state
+    initGraphics();
+
+    // Register callbacks:
+    glutDisplayFunc (display);
+    glutReshapeFunc (reshape);
+    glutKeyboardFunc (keyboard);
+    glutMouseFunc (mouseButton);
+    glutMotionFunc (mouseMotion);
+    glutIdleFunc (animateScene);
+
+    //BuildPopupMenu ();
+    //glutAttachMenu (GLUT_RIGHT_BUTTON);
+
+    // Turn the flow of control over to GLUT
+    glutMainLoop ();
+
+    return 0;
+}
+
+

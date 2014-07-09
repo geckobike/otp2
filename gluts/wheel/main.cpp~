@@ -1,0 +1,316 @@
+#include "stdio.h"
+#include "stdlib.h"
+#include "math.h"
+
+#define ILINE inline
+
+struct Vec3
+{
+	float x,y,z;
+	
+	Vec3() {}
+
+	Vec3(float a, float b, float c)
+	{
+		x = a; y = b; z = c;
+	}
+
+	ILINE Vec3 operator * (float k) const	
+	{
+		const Vec3 v = *this;
+		return Vec3(v.x*k,v.y*k,v.z*k);
+	}
+
+	ILINE Vec3 operator / (float k) const	
+	{
+		k=(float)1.0/k; return Vec3(x*k,y*k,z*k);
+	}
+
+	ILINE Vec3& operator *= (float k)	
+	{
+		x*=k;y*=k;z*=k; return *this;
+	}
+
+	ILINE Vec3& operator /= (float k)	
+	{
+		k=(float)1.0/k; x*=k;y*=k;z*=k; return *this;
+	}
+
+	ILINE Vec3 operator - ( void ) const	
+	{
+		return Vec3(-x,-y,-z);
+	}
+
+	//two methods for a "cross-product" operation
+	ILINE Vec3 Cross (const Vec3 vec2) const	
+	{
+		return Vec3( y*vec2.z  -  z*vec2.y,     z*vec2.x -    x*vec2.z,   x*vec2.y  -  y*vec2.x);
+	}	
+
+	ILINE float Dot(const Vec3& v) const	
+	{
+		return x*v.x+y*v.y+z*v.z; 
+	}
+
+};
+
+ILINE Vec3 operator + (const Vec3 &v0, const Vec3 &v1) 
+{
+	return Vec3((v0.x+v1.x), (v0.y+v1.y), (v0.z+v1.z));
+}
+
+ILINE Vec3 operator - (const Vec3 &v0, const Vec3 &v1) 
+{
+	return Vec3((v0.x-v1.x), (v0.y-v1.y), (v0.z-v1.z));
+}
+
+
+
+// Solving a wheel impulse
+
+
+float GetSphereInertia(float mass, float radius)
+{
+	return 0.4f*radius*radius*mass;
+}
+
+ILINE float computeDenominator(float invMass, float invInertia, const Vec3& offset, const Vec3& norm)
+{
+    // If you apply an impulse of 1.0f in the direction of 'norm'
+    // at position specified by 'offset' then the point will change
+    // velocity by the amount calculated here
+	Vec3 cross = offset.Cross(norm);
+	cross = cross * invInertia;	// Assume sphere inertia for now
+	cross = cross.Cross(offset);
+    return norm.Dot(cross) + invMass;
+}
+
+struct Wheel
+{
+	float radius;
+	float mass;
+	float invMass;
+	float inertia;
+	float invI;
+	Vec3 offset;
+
+	float w;
+
+	float chassisK;		// impulse of 1 gives this change in velocity
+	Vec3 chassisW;		// impulse of 1 gives this change in w
+};
+
+struct Chassis
+{
+	float mass;
+	float invMass;
+	float radius;
+	float inertia;
+	float invI;
+
+	Vec3 vel;
+	Vec3 angVel;
+};
+
+
+
+void Solve(const Vec3& direction, const Chassis* c, const Wheel* w, float& wheelImpulse, float& chassisImpulse)
+{
+	wheelImpulse = 0.f;
+	chassisImpulse = 0.f;
+
+	float ww = w->w;
+	Vec3 v = c->vel;
+	Vec3 angVel = c->angVel;
+
+	for (int repeat=0; repeat<20; repeat++)
+	{
+		float erp = 1.0f;
+		float wheelInvK = 1.f/(w->invMass + w->radius * w->radius * w->invI);
+
+		float slip = -ww*w->radius + (v + angVel.Cross(w->offset)).Dot(direction);
+		float impulse = -wheelInvK * slip * erp;
+
+		ww -= impulse * w->radius * w->invI;
+		wheelImpulse += impulse;
+
+		float velChange = impulse * w->invMass;	// This is the vel change imparted on just the wheel
+
+		// Bring velChange back to zero by applying impulse to chassis
+		float denom = w->invMass + w->chassisK;
+		impulse = velChange / denom;
+
+		// Apply impulse
+		v = v + direction * (impulse * c->invMass);
+		angVel = angVel + w->chassisW * impulse;
+
+		printf("w=%f, vel=(%f,%f,%f) angVel=(%f,%f,%f)\n", ww, v.x,v.y,v.z, angVel.x,angVel.y,angVel.z);
+
+		chassisImpulse += impulse;
+	}
+}
+
+void SolveOnce(const Vec3& direction, const Chassis* c, const Wheel* w, float& wheelImpulse, float& chassisImpulse)
+{
+	wheelImpulse = 0.f;
+	chassisImpulse = 0.f;
+
+	float slip = -w->w*w->radius + (c->vel + c->angVel.Cross(w->offset)).Dot(direction);
+
+	float kw = w->radius*w->radius*w->invI;	// An impulse of 1, will change the slip by this amount through changing w
+
+	float ratio = w->invMass / (w->invMass + w->chassisK); // Impulse ratio between wheel and chassis, which removes joint error
+
+	float kv = ratio * w->chassisK; // A wheel impulse of 1, will change the slip this amount through chassis v
+
+	wheelImpulse = - slip / (kv + kw);	// This is the impulse added to the wheel
+	chassisImpulse = wheelImpulse * ratio; // This is the impulse added to the chassis (it's different to the wheel!)
+}
+
+int main()
+{
+	Vec3 direction = Vec3(1.f, 0.f, 0.f);
+
+	Wheel w;
+	w.radius = 0.5f;
+	w.mass = 1.f;
+	w.invMass = 1.f/w.mass;
+	w.inertia = GetSphereInertia(w.mass, w.radius);
+	w.invI = 1.f/w.inertia;
+	w.offset = Vec3(0.f, 0.f, -0.3f);
+	w.w = 0.f;
+
+	Chassis c;
+	c.radius = 2.f;
+	c.mass = 10.f;
+	c.invMass = 1.f/c.mass;
+	c.inertia = GetSphereInertia(c.mass, c.radius);
+	c.invI = 1.f/c.inertia;
+	c.vel = Vec3(10.f, 0.f, 0.f);
+	c.angVel = Vec3(0.f, 0.f, 0.f);
+
+	// Solver helpers
+	w.chassisW = w.offset.Cross(direction)*c.invI;
+	w.chassisK = computeDenominator(c.invMass, c.invI, w.offset, direction);
+
+	float wheelImpulse, chassisImpulse;
+	Solve(direction, &c,&w, wheelImpulse, chassisImpulse);
+	printf("impulse = %f, %f\n", wheelImpulse, chassisImpulse);
+	
+	SolveOnce(direction, &c,&w, wheelImpulse, chassisImpulse);
+	printf("impulse = %f, %f\n", wheelImpulse, chassisImpulse);
+
+	float ww = w.w - wheelImpulse * w.radius * w.invI;
+	Vec3 v = c.vel + direction * (chassisImpulse * c.invMass);
+	Vec3 angVel = c.angVel + w.chassisW * chassisImpulse;
+	printf("w=%f, vel=(%f,%f,%f) angVel=(%f,%f,%f)\n", ww, v.x,v.y,v.z, angVel.x,angVel.y,angVel.z);
+		
+	float slip = -ww*w.radius + (v + angVel.Cross(w.offset)).Dot(direction);
+	printf("slip = %f\n", slip);
+
+	return 0;
+}
+
+#if 0	
+struct Wheel
+{
+	float radius;
+	float mass;
+	float invMass;
+	float inertia;
+	float invI;
+
+	float w;
+};
+
+struct Chassis
+{
+	float mass;
+	float invMass;
+
+	float vel;
+};
+
+
+void Solve(const Chassis* c, const Wheel* w, float& wheelImpulse, float& chassisImpulse)
+{
+	wheelImpulse = 0.f;
+	chassisImpulse = 0.f;
+
+	float ww = w->w;
+	float v = c->vel;
+	float totalImpulse = 0.f;
+
+	for (int repeat=0; repeat<100; repeat++)
+	{
+		float erp = 1.f;
+		float wheelInvK = 1.f/(w->invMass + w->radius * w->radius * w->invI);
+
+		float slip = -ww*w->radius + v;
+		float impulse = -wheelInvK * slip * erp;
+
+		ww -= impulse * w->radius * w->invI;
+		wheelImpulse += impulse;
+
+		float velChange = impulse * w->invMass;	// This is the vel change imparted on just the wheel
+
+		// Bring velChange back to zero by applying impulse to chassis
+		float denom = w->invMass + c->invMass /*w->chassisK0*/;
+		impulse = velChange / denom;
+
+		v += impulse * c->invMass;
+		printf("w=%f, vel=%f\n", ww, v);
+
+		chassisImpulse += impulse;
+	}
+}
+
+void SolveOnce(const Chassis* c, const Wheel* w, float& wheelImpulse, float& chassisImpulse)
+{
+	wheelImpulse = 0.f;
+	chassisImpulse = 0.f;
+
+	float slip0 = -w->w*w->radius + c->vel;
+
+	float kw = w->radius*w->radius*w->invI;	// An impulse of 1, will change the slip by this amount through changing w
+
+	float kv = w->invMass / (w->invMass + c->invMass); // An impulse of 1, will change the slip this amount through chassis v
+
+	wheelImpulse = - slip0 / (kv*c->invMass + kw);	// This is the impulse added to the wheel
+	chassisImpulse = kv * wheelImpulse; // This is the impulse added to the chassis (it's different to the wheel!)
+}
+
+
+int main()
+{
+	Wheel w;
+	w.radius = 0.5f;
+	w.mass = 1.f;
+	w.invMass = 1.f/w.mass;
+	w.inertia = GetWheelInertia(w.mass, w.radius);
+	w.invI = 1.f/w.inertia;
+	w.w = 0.f;
+
+	Chassis c;
+	c.mass = 10.f;
+	c.invMass = 1.f/c.mass;
+	c.vel = 10.f;
+
+	float wheelImpulse, chassisImpulse;
+	Solve(&c,&w, wheelImpulse, chassisImpulse);
+	printf("impulse = %f, %f\n", wheelImpulse, chassisImpulse);
+	
+	SolveOnce(&c,&w, wheelImpulse, chassisImpulse);
+	printf("impulse = %f, %f\n", wheelImpulse, chassisImpulse);
+
+	float v = c.vel + chassisImpulse * c.invMass;
+	float ww = w.w - wheelImpulse * w.radius * w.invI;
+	printf("vel = %f\n", v);
+	printf("slip = %f, w=%f\n", v - ww*w.radius, ww);
+
+
+
+	return 0;
+}
+#endif
+

@@ -1,0 +1,28 @@
+TODO
+
+should be using maxImpulse
+and then fix spring errors using the maxImpulse.
+Hard collision have an inifinite maxImpulse, by definition.
+(might) ditch using hitDistance along the axis, thats not useful
+
+
+- Calc spring maxImpulse for chassis, based on current x, and current v
+
+- Wheel and chassis are given velocity.
+
+- Wheel is allocated maxImpulse to use against the chassis.
+
+- Any collision with the ground corrects the wheel position.
+	- Any net movement towards the chassis is corrected by impulse to the chassis
+	- the sum of the impulses used to correct the chassis via the wheel are clamped to maxImpulse.
+
+- Correction should be done in the direction of the ground normal NOT the suspension normal.
+	- Wheel is always projected back on to axis
+
+- Suspension upper limit should be done using collision of chassis with the ground
+
+- Simply clamp suspension compression to minCompression and maxCompression
+
+- Convert susp vel to car space.
+
+- Update the compression

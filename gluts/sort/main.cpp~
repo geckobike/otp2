@@ -1,0 +1,66 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+#include <time.h>
+#include <sys/time.h>
+
+int main()
+{
+	enum {maxN=2100};
+	int* out = (int*)malloc(sizeof(int)*maxN);
+	unsigned char* radix = (unsigned char*)malloc(maxN);
+
+	// Generate a random data set
+	for (int i=0; i<maxN; i++)
+	{
+		radix[i] = (rand() * 3) & 255;
+	}
+
+	timeval time0, time1;
+	gettimeofday(&time0, NULL);
+
+	// Start the sort
+	int numRepeats = 10000;
+	for (int repeat = 0; repeat < numRepeats; repeat++)
+	{
+		int* count = (int*)malloc(sizeof(int)*maxN);
+		int* offsets = (int*)malloc(sizeof(int)*maxN);
+		memset(count, 0, sizeof(offsets));
+		memset(offsets, 0, sizeof(offsets));
+		for (int i=0; i<maxN; i++)
+		{
+			count[radix[i]]++;
+		}
+		for (int i=1; i<maxN; i++)
+		{
+			offsets[i] = offsets[i-1] + count[i-1];
+		}
+
+		// Place
+		for (int i=1; i<maxN; i++)
+		{
+			int position = offsets[radix[i]];
+			offsets[radix[i]]++;
+			out[position] = radix[i];
+		}
+	}
+
+	gettimeofday(&time1, NULL);
+
+	float timeTaken = (float)(time1.tv_sec - time0.tv_sec) + 1e-6f*(float)(time1.tv_usec - time0.tv_usec);
+	printf("timeTaken = %f\n", timeTaken);
+
+	printf("timeTaken per sort = %f ms\n", 1000.f * timeTaken / (float)numRepeats);
+
+	if (0)
+	{
+		// Print the result
+		for (int i=1; i<maxN; i++)
+		{
+			printf("%d\n", out[i]);
+		}
+	}
+
+	return 0;
+}

@@ -1,0 +1,203 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.7	//
+DEG2RAD	../engine\engine.h	13;"	d
+FALSE	../engine\engine.h	110;"	d
+FLOAT_EPSILON	../engine\engine.h	18;"	d
+FLOAT_MAX	../engine\engine.h	16;"	d
+FLOAT_MIN	../engine\engine.h	17;"	d
+MAX	../engine\engine.h	203;"	d
+MIN	../engine\engine.h	204;"	d
+MTXALIGN	../engine\engine.h	23;"	d
+PI	../engine\engine.h	9;"	d
+PI_D2	../engine\engine.h	11;"	d
+PIx2	../engine\engine.h	10;"	d
+RAD2DEG	../engine\engine.h	14;"	d
+SQR	../engine\engine.h	20;"	d
+SQRT1_2	../engine\engine.h	12;"	d
+SWAPF	../engine\engine.cpp	581;"	d	file:
+SWAPF	../engine\engine.cpp	590;"	d	file:
+TRUE	../engine\engine.h	111;"	d
+Timer	../engine\engine.h	/^struct Timer$/;"	s
+VECALIGN	../engine\engine.h	22;"	d
+XYZ	../engine\engine.h	200;"	d
+__ALIGN	../engine\engine.h	24;"	d
+__ENGINE_H__	../engine\engine.h	2;"	d
+a	../engine\engine.h	/^	float a;$/;"	m	struct:vec4_u::__anon5
+adjoint	../engine\engine.cpp	/^static void adjoint(const mtx *in, mtx *out)$/;"	f	file:
+assert	../engine\engine.cpp	10;"	d	file:
+assertDisable	../engine\engine.cpp	16;"	d	file:
+assertElse	../engine\engine.cpp	23;"	d	file:
+assertElseMsg	../engine\engine.cpp	24;"	d	file:
+assertGetCallback	../engine\engine.cpp	18;"	d	file:
+assertGetProcessName	../engine\engine.cpp	26;"	d	file:
+assertIf	../engine\engine.cpp	19;"	d	file:
+assertIfMsg	../engine\engine.cpp	20;"	d	file:
+assertInit	../engine\engine.cpp	15;"	d	file:
+assertIsUnitVector	../engine\engine.cpp	27;"	d	file:
+assertMsg	../engine\engine.cpp	12;"	d	file:
+assertNot	../engine\engine.cpp	21;"	d	file:
+assertNotMsg	../engine\engine.cpp	22;"	d	file:
+assertSetCallback	../engine\engine.cpp	17;"	d	file:
+assertSetProcessName	../engine\engine.cpp	25;"	d	file:
+assertVerify	../engine\engine.cpp	14;"	d	file:
+b	../engine\engine.h	/^	float b;$/;"	m	struct:vec4_u::__anon5
+boolean	../engine\engine.h	/^typedef int boolean;$/;"	t
+criticalAssert	../engine\engine.cpp	11;"	d	file:
+criticalAssertMsg	../engine\engine.cpp	13;"	d	file:
+det2x2	../engine\engine.cpp	/^static inline float det2x2(float a, float b, float c, float d)$/;"	f	file:
+det3x3	../engine\engine.cpp	/^static float det3x3(float  a1, float a2, float a3, float b1, float b2, float b3, float c1, float c2, float c3)$/;"	f	file:
+det4x4	../engine\engine.cpp	/^static float det4x4( const mtx *m )$/;"	f	file:
+fapprox	../engine\engine.h	193;"	d
+fapprox0	../engine\engine.h	194;"	d
+fapx	../engine\engine.h	195;"	d
+fapx0	../engine\engine.h	196;"	d
+frnd	../engine\engine.h	/^inline float frnd()$/;"	f
+g	../engine\engine.h	/^	float g;$/;"	m	struct:vec4_u::__anon5
+matrix33Multiply33	../engine\engine.cpp	/^void matrix33Multiply33(mtx *m, const mtx *m1, const mtx *m2)$/;"	f
+matrix33Multiply33Tran1	../engine\engine.cpp	/^void matrix33Multiply33Tran1(mtx *m, const mtx *m1, const mtx *m2)$/;"	f
+matrixAbs	../engine\engine.cpp	/^void matrixAbs(mtx *m1, const mtx *m0)$/;"	f
+matrixCopy	../engine\engine.cpp	/^void matrixCopy(mtx *m, const mtx *m1)$/;"	f
+matrixCopy33	../engine\engine.cpp	/^void matrixCopy33(mtx *outMtx, const mtx *inMtx)$/;"	f
+matrixDoScaleXYZ	../engine\engine.cpp	/^void matrixDoScaleXYZ(mtx *m1, const mtx *m0, float sx, float sy, float sz)$/;"	f
+matrixFrom2Axes	../engine\engine.cpp	/^void matrixFrom2Axes(mtx *m, vec3 *v1, vec3 *v2)$/;"	f
+matrixFrom3Axis	../engine\engine.cpp	/^void matrixFrom3Axis(mtx *outMtx, const vec3 *inX, const vec3 *inY, const vec3 *inZ)$/;"	f
+matrixFromXAxis	../engine\engine.cpp	/^void matrixFromXAxis( mtx *m, const vec3 *xaxis )$/;"	f
+matrixFromYAxis	../engine\engine.cpp	/^void matrixFromYAxis( mtx *m, const vec3 *yaxis )$/;"	f
+matrixFromYAxisWithPos	../engine\engine.cpp	/^void matrixFromYAxisWithPos( mtx *m, const vec3 *yaxis, const vec3 *inPos )$/;"	f
+matrixFromZAxis	../engine\engine.cpp	/^void matrixFromZAxis( mtx *m, const vec3 *zaxis )$/;"	f
+matrixFromZAxisWithPos	../engine\engine.cpp	/^void matrixFromZAxisWithPos( mtx *m, const vec3 *zaxis, const vec3 *inPos )$/;"	f
+matrixFrustum	../engine\engine.cpp	/^void matrixFrustum(mtx *m, float left, float right, float bottom, float top, float zNear, float zFar)$/;"	f
+matrixGetDeterminant	../engine\engine.cpp	/^float matrixGetDeterminant(const mtx *m)$/;"	f
+matrixGetDir	../engine\engine.cpp	/^const vec3* matrixGetDir(const mtx *inMtx)$/;"	f
+matrixGetRight	../engine\engine.cpp	/^const vec3* matrixGetRight(const mtx *inMtx)$/;"	f
+matrixGetTrans	../engine\engine.cpp	/^const vec3* matrixGetTrans(const mtx *m)$/;"	f
+matrixGetUp	../engine\engine.cpp	/^const vec3* matrixGetUp(const mtx *inMtx)$/;"	f
+matrixIdent	../engine\engine.cpp	/^void matrixIdent(mtx *m)$/;"	f
+matrixInvert	../engine\engine.cpp	/^void matrixInvert(mtx *m, const mtx *m1)$/;"	f
+matrixInvert44	../engine\engine.cpp	/^void matrixInvert44(mtx *m, const mtx *min)$/;"	f
+matrixLook	../engine\engine.cpp	/^void matrixLook(mtx *m, const vec3 *pos, const vec3 *dir, const vec3 *up, const vec3 *right)$/;"	f
+matrixLookAt	../engine\engine.cpp	/^void	matrixLookAt(mtx *m, const vec3 *pos, const vec3 *centre, const vec3 *up)$/;"	f
+matrixLookAtNonTransposed	../engine\engine.cpp	/^void	matrixLookAtNonTransposed(mtx *m, const vec3 *pos, const vec3 *lookatpoint, const vec3 *up)$/;"	f
+matrixLookNonTransposed	../engine\engine.cpp	/^void matrixLookNonTransposed(mtx *m, const vec3 *pos, const vec3 *dir, const vec3 *up, const vec3 *right)$/;"	f
+matrixMultiply	../engine\engine.cpp	/^void matrixMultiply(mtx *m, const mtx *m1, const mtx *m2)$/;"	f
+matrixMultiply	../engine\engine.h	261;"	d
+matrixMultiplyAligned	../engine\engine.cpp	/^void matrixMultiplyAligned(mtx *m, const mtx *m1, const mtx *m2)$/;"	f
+matrixOrtho	../engine\engine.cpp	/^void matrixOrtho(mtx *mat,  float left,  float right,  float bottom,  float top,  float zNear,  float zFar)$/;"	f
+matrixPerspective	../engine\engine.cpp	/^void matrixPerspective(mtx *m, float fovy, float aspect, float zn, float zf)$/;"	f
+matrixPrintf	../engine\engine.cpp	/^void matrixPrintf(const mtx *m)$/;"	f
+matrixPrintfTranspose	../engine\engine.cpp	/^void matrixPrintfTranspose(const mtx *m)$/;"	f
+matrixReNormalise	../engine\engine.cpp	/^void matrixReNormalise(mtx* m)$/;"	f
+matrixRot	../engine\engine.cpp	/^void matrixRot(mtx *m, const vec3 *u, float angle)$/;"	f
+matrixRotCS	../engine\engine.cpp	/^void matrixRotCS(mtx *m, vec3 *u, float cosAngle, float sinAngle)   \/\/ Use this version if you have already calculated cosAngle and sinAngle$/;"	f
+matrixRotX	../engine\engine.cpp	/^mtx* matrixRotX(mtx *m, float angle)$/;"	f
+matrixRotXYZ	../engine\engine.cpp	/^void matrixRotXYZ(mtx *m, float anglex, float angley, float anglez)$/;"	f
+matrixRotY	../engine\engine.cpp	/^mtx* matrixRotY(mtx *m, float angle)$/;"	f
+matrixRotZ	../engine\engine.cpp	/^mtx* matrixRotZ(mtx *m, float angle)$/;"	f
+matrixRotZXY	../engine\engine.cpp	/^void matrixRotZXY(mtx *m, float anglex, float angley, float anglez)$/;"	f
+matrixRotZYX	../engine\engine.cpp	/^void matrixRotZYX(mtx *m, float anglex, float angley, float anglez)$/;"	f
+matrixScale	../engine\engine.cpp	/^void matrixScale(mtx *m, float scale)$/;"	f
+matrixScaleXYZ	../engine\engine.cpp	/^void matrixScaleXYZ(mtx *m, float sx, float sy, float sz)$/;"	f
+matrixSetDirv	../engine\engine.cpp	/^void matrixSetDirv(mtx *outMtx, const vec3 *inDir)$/;"	f
+matrixSetRightv	../engine\engine.cpp	/^void matrixSetRightv(mtx *outMtx, const vec3 *inRight)$/;"	f
+matrixSetTrans	../engine\engine.cpp	/^void matrixSetTrans(mtx *m, float x, float y, float z)$/;"	f
+matrixSetTransv	../engine\engine.cpp	/^void matrixSetTransv(mtx *outMtx, const vec3 *inTrans)$/;"	f
+matrixSetUpv	../engine\engine.cpp	/^void matrixSetUpv(mtx *outMtx, const vec3 *inUp)$/;"	f
+matrixToRotationZXY	../engine\engine.cpp	/^void matrixToRotationZXY(const mtx *m, float *r1, float *r2, float *r3)$/;"	f
+matrixTrans	../engine\engine.cpp	/^void matrixTrans(mtx *m, float x, float y, float z)$/;"	f
+matrixTransRotXYZ	../engine\engine.cpp	/^void matrixTransRotXYZ(mtx *m, float tx, float ty, float tz, float anglex, float angley, float anglez)$/;"	f
+matrixTransRotZXY	../engine\engine.cpp	/^void matrixTransRotZXY(mtx *m, float tx, float ty, float tz, float anglex, float angley, float anglez)$/;"	f
+matrixTranspose	../engine\engine.cpp	/^void matrixTranspose(mtx *m, const mtx *m1)$/;"	f
+matrixTransposeWithTrans	../engine\engine.cpp	/^void matrixTransposeWithTrans(mtx *outMtx, const mtx *inMtx)$/;"	f
+matrixTransv	../engine\engine.cpp	/^void matrixTransv(mtx *m, const vec3* vec)$/;"	f
+matrixVec3Mul4	../engine\engine.cpp	/^void matrixVec3Mul4(const mtx *m, const vec3 *vec, vec4 *newvec)$/;"	f
+matrixVecMul	../engine\engine.cpp	/^void matrixVecMul(const mtx *m, vec3 *vec)$/;"	f
+matrixVecMulCpy	../engine\engine.cpp	/^void matrixVecMulCpy(vec3 *outVec, const mtx *m, const vec3 *v)$/;"	f
+matrixVecMulTranspose	../engine\engine.cpp	/^void matrixVecMulTranspose(const mtx *m, vec3 *v)$/;"	f
+matrixVecRot	../engine\engine.cpp	/^void matrixVecRot(const mtx *m, vec3 *vec)$/;"	f
+matrixVecRotCpy	../engine\engine.cpp	/^void matrixVecRotCpy(vec3 *out, const mtx *m, const vec3 *vec)$/;"	f
+matrixVecRotTranspose	../engine\engine.cpp	/^void matrixVecRotTranspose(const mtx *m, vec3 *v)$/;"	f
+matrixZero	../engine\engine.cpp	/^void matrixZero(mtx *m)$/;"	f
+matrixroll	../engine\engine.cpp	/^void matrixroll(union mtx_u *newmtx, vec3 *axis, float axialrot)$/;"	f
+mtx	../engine\engine.h	/^typedef mtx_u mtx;$/;"	t
+mtx_u	../engine\engine.h	/^union mtx_u$/;"	u
+operator +	../engine\engine.h	/^inline vec3 operator + (const vec3& a, const vec3& b)$/;"	f
+operator -	../engine\engine.h	/^inline vec3 operator - (const vec3& a, const vec3& b)$/;"	f
+quaternion	../engine\engine.h	/^typedef union quaternion_u quaternion;$/;"	t	typeref:union:quaternion_u
+quaternionAdd	../engine\engine.cpp	/^void quaternionAdd(quaternion *q, const quaternion *q1, const quaternion *q2)$/;"	f
+quaternionCopy	../engine\engine.cpp	/^void quaternionCopy(quaternion *q, const quaternion *q1)$/;"	f
+quaternionIdent	../engine\engine.cpp	/^void quaternionIdent(quaternion *q)$/;"	f
+quaternionNegate	../engine\engine.cpp	/^void quaternionNegate(quaternion *q, const quaternion *q1)$/;"	f
+quaternionRotateVector	../engine\engine.cpp	/^void quaternionRotateVector(vec3 *v, const quaternion *q1, const vec3 *v1)$/;"	f
+quaternionSet	../engine\engine.cpp	/^void quaternionSet(quaternion *q, float x, float y, float z, float w)$/;"	f
+quaternionSub	../engine\engine.cpp	/^void quaternionSub(quaternion *q, const quaternion *q1, const quaternion *q2)$/;"	f
+quaternionToMatrix	../engine\engine.cpp	/^void quaternionToMatrix(mtx* restrict m, const quaternion* restrict q)$/;"	f
+quaternion_u	../engine\engine.h	/^union quaternion_u$/;"	u
+r	../engine\engine.h	/^	float r;$/;"	m	struct:vec4_u::__anon5
+rnd	../engine\engine.h	302;"	d
+s16	../engine\engine.h	/^typedef short s16;$/;"	t
+s32	../engine\engine.h	/^typedef int s32;$/;"	t
+sgn	../engine\engine.cpp	/^float sgn(float f)$/;"	f
+time	../engine\engine.h	/^	timeval time;$/;"	m	struct:Timer
+timerGetTickSinceLastUUpdate	../engine\engine.h	/^static double timerGetTickSinceLastUUpdate(Timer* timer)$/;"	f
+timerUpdate	../engine\engine.h	/^static void timerUpdate(Timer* timer)$/;"	f
+u16	../engine\engine.h	/^typedef unsigned short u16;$/;"	t
+u32	../engine\engine.h	/^typedef unsigned int u32;$/;"	t
+v	../engine\engine.h	/^	    vec3 v;$/;"	m	union:quaternion_u::__anon6::__anon7
+v128	../engine\engine.h	/^    vec_float4 v128;$/;"	m	union:vec4_u
+v3	../engine\engine.h	/^	    vec3 v3;$/;"	m	union:vec4_u::__anon2::__anon3
+vec3	../engine\engine.h	/^typedef vec3_u vec3;$/;"	t
+vec3_u	../engine\engine.h	/^union vec3_u$/;"	u
+vec3list	../engine\engine.h	214;"	d
+vec3listp	../engine\engine.h	215;"	d
+vec3mtx33mulvec3	../engine\engine.cpp	/^void vec3mtx33mulvec3(vec3 *v, const mtx *m, const vec3 *v1)$/;"	f
+vec3mtx43mulvec3	../engine\engine.cpp	/^void vec3mtx43mulvec3(vec3 *v, const mtx *m, const vec3 *v1)$/;"	f
+vec3tranmtx33mulvec3	../engine\engine.cpp	/^void vec3tranmtx33mulvec3(vec3 *v, const mtx *m, const vec3 *v1)$/;"	f
+vec3tranmtx43mulvec3	../engine\engine.cpp	/^void vec3tranmtx43mulvec3(vec3 *v, const mtx *m, const vec3 *v1)$/;"	f
+vec4	../engine\engine.h	/^typedef vec4_u vec4;$/;"	t
+vec4_u	../engine\engine.h	/^union vec4_u$/;"	u
+vec4mtx44mulvec3	../engine\engine.cpp	/^void vec4mtx44mulvec3(vec4 *v, const mtx *m, const vec3 *v1)$/;"	f
+vec4mtx44mulvec4	../engine\engine.cpp	/^void vec4mtx44mulvec4(vec4 *v, const mtx *m, const vec4 *v1)$/;"	f
+vec4mtx44mulvec4pre	../engine\engine.cpp	/^void vec4mtx44mulvec4pre(vec4 *v, const mtx *m, const vec4 *v1)$/;"	f
+vecadd	../engine\engine.cpp	/^void vecadd(vec3* v, const vec3* a)$/;"	f
+vecadd	../engine\engine.cpp	/^void vecadd(vec3* v, const vec3* a, const vec3* b)$/;"	f
+vecaddscale	../engine\engine.cpp	/^void vecaddscale(vec3 *v, const vec3 *v1, const float f)$/;"	f
+vecaddscale	../engine\engine.cpp	/^void vecaddscale(vec3 *v, const vec3 *v1, const vec3 *v2, const float f)$/;"	f
+veccpy	../engine\engine.cpp	/^void veccpy(vec3* a, const vec3* b)$/;"	f
+veccpy4	../engine\engine.cpp	/^void veccpy4(vec4 *v, const vec4 *v1)$/;"	f
+veccross	../engine\engine.h	/^static void veccross(vec3 *v, const vec3 *v1, const vec3 *v2)$/;"	f
+vecdist	../engine\engine.cpp	/^float vecdist(const vec3 *v1, const vec3 *v2)$/;"	f
+vecdistsq	../engine\engine.cpp	/^float vecdistsq(const vec3 *v1, const vec3 *v2)$/;"	f
+vecdot	../engine\engine.cpp	/^float vecdot(const vec3 *v1, const vec3 *v2)$/;"	f
+vecisunit	../engine\engine.h	198;"	d
+veclist	../engine\engine.h	201;"	d
+vecmidpoint	../engine\engine.h	/^static inline void vecmidpoint(vec3 *v, const vec3 *v1, const vec3 *v2)$/;"	f
+vecneg	../engine\engine.h	/^inline vec3 vecneg(const vec3& a)$/;"	f
+vecneg	../engine\engine.h	/^static void vecneg(vec3 *v, const vec3 *v1)$/;"	f
+vecnegcpy	../engine\engine.h	/^static void vecnegcpy(vec3 *v, const vec3 *v1)$/;"	f
+vecnormalise	../engine\engine.cpp	/^void vecnormalise(vec3* v)$/;"	f
+vecnormalise	../engine\engine.cpp	/^void vecnormalise(vec3* v, const vec3* v1)$/;"	f
+vecscale	../engine\engine.cpp	/^void vecscale(vec3* a, const vec3* b, float s)$/;"	f
+vecscale	../engine\engine.cpp	/^void vecscale(vec3* a, float s)$/;"	f
+vecset	../engine\engine.cpp	/^void vecset(vec3* v, float x, float y, float z)$/;"	f
+vecset4	../engine\engine.h	/^static void vecset4(vec4 *v, const float x, const float y, const float z, float w)$/;"	f
+vecsize	../engine\engine.cpp	/^float vecsize(const vec3 *v)$/;"	f
+vecsizesq	../engine\engine.cpp	/^float vecsizesq(const vec3 *v)$/;"	f
+vecsub	../engine\engine.cpp	/^void vecsub(vec3* v, const vec3* a)$/;"	f
+vecsub	../engine\engine.cpp	/^void vecsub(vec3* v, const vec3* a, const vec3* b)$/;"	f
+vecsubscale	../engine\engine.cpp	/^void vecsubscale(vec3 *v, const vec3 *v1, const vec3 *v2, const float f)$/;"	f
+veczero	../engine\engine.cpp	/^void veczero(vec3* a)$/;"	f
+w	../engine\engine.h	/^	float w;$/;"	m	struct:quaternion_u::__anon6
+w	../engine\engine.h	/^        float w;$/;"	m	struct:vec4_u::__anon2
+x	../engine\engine.h	/^		float x;$/;"	m	struct:quaternion_u::__anon6::__anon7::__anon8
+x	../engine\engine.h	/^		float x;$/;"	m	struct:vec4_u::__anon2::__anon3::__anon4
+x	../engine\engine.h	/^	float x;$/;"	m	struct:vec3_u::__anon1
+y	../engine\engine.h	/^		float y;$/;"	m	struct:quaternion_u::__anon6::__anon7::__anon8
+y	../engine\engine.h	/^		float y;$/;"	m	struct:vec4_u::__anon2::__anon3::__anon4
+y	../engine\engine.h	/^	float y;$/;"	m	struct:vec3_u::__anon1
+z	../engine\engine.h	/^		float z;$/;"	m	struct:quaternion_u::__anon6::__anon7::__anon8
+z	../engine\engine.h	/^		float z;$/;"	m	struct:vec4_u::__anon2::__anon3::__anon4
+z	../engine\engine.h	/^	float z;$/;"	m	struct:vec3_u::__anon1

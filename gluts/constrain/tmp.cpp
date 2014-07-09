@@ -1,0 +1,815 @@
+#include <time.h>
+#include <sys/time.h>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#define ENABLE_TIMER
+#include "engine/engine.h"
+
+#include <GL/gl.h>
+#include <GL/glut.h>
+
+
+#ifdef _MSC_VER
+#pragma warning(disable:4244 4305)  // for VC++, no precision loss complaints
+#endif
+
+#define rnd rand
+#define MAX(x,y) ((x)>(y) ? (x) : (y))
+#define assert(x) { if (!(x)) { printf("ABORT: from file %s, line %d: expr failed: %s\n", __FILE__, __LINE__, #x); fflush(stdout); exit(0); } }
+
+#define veclist(v) (v)[0], (v)[1], (v)[2], (v)[3]
+
+typedef unsigned short u16;
+typedef unsigned char u8;
+
+static int s_width = 800;
+static int s_height = 600;
+
+static bool s_paused = false;
+static float s_averageDt = 0.f;
+
+static float s_elev=0.f;
+static float s_yaw=0.f;
+static float s_cameraRadius=1.f;
+static vec3 s_cameraPos={0.f, 1.f, 2.f};
+static vec3 s_cameraDir;
+static vec3 s_cameraForward = {0.f, 0.f, -1.f};	// normalised direction in XZ plane
+static vec3 s_cameraLeft = {-1.f, 0.f, 0.f};	// normalised direction in XZ plane
+static Timer g_time;
+static int s_mouseDown = false;
+static int s_lastMouseX=0;
+static int s_lastMouseY=0;
+static float g_angle = 0.f;
+
+#define ARRAY_SIZEOF(a) ((int)( sizeof((a)) / sizeof((a)[0]) ))
+
+float frnd()
+{
+	return ((float)rand()*(1.f/RAND_MAX));
+}
+
+
+/*
+=======================================================================================
+    Utils
+=======================================================================================
+*/
+
+
+void dlDrawLine(const vec3* from, const vec3* to, const vec4* colour)
+{
+	glBegin(GL_LINES);
+	glColor3f(colour->x, colour->y, colour->z);
+	glVertex3f(from->x, from->y, from->z);
+	glColor3f(colour->x, colour->y, colour->z);
+	glVertex3f(to->x, to->y, to->z);
+	glEnd();
+}
+
+void dlDrawLine(const vec3* from, const vec3* to)
+{
+	glBegin(GL_LINES);
+	glVertex3f(from->x, from->y, from->z);
+	glVertex3f(to->x, to->y, to->z);
+	glEnd();
+}
+
+void dlDrawCircle(float x, float y, float r, bool filled = true)
+{
+    u32 N = 20;
+    float dAlpha = PIx2 / (float)N;
+    float a = 0.0f;
+    filled ? glBegin(GL_POLYGON) : glBegin(GL_LINE_STRIP);
+	for (u32 i=0; i<(N+1); i++)
+	{
+	    glVertex3f(x+r*cosf(a), y+r*sinf(a), 0.f);
+	    a += dAlpha;
+	}
+    glEnd();
+}
+
+void dlMultMatrix(const mtx *mat)
+{
+    glMultMatrixf((float *)mat);
+}
+
+static double averageTime()
+{
+    static bool init = false;
+    static struct timeval lastTime;
+
+    if (!init) { gettimeofday(&lastTime,NULL); init = true; }
+    
+    struct timeval now;
+ 
+    long long sec;
+    long long microsec;
+    
+    gettimeofday(&now,NULL);
+    
+    sec = now.tv_sec - lastTime.tv_sec;
+    microsec = now.tv_usec - lastTime.tv_usec;
+    
+    lastTime = now;
+   
+    // Filter the average time to smooth it out
+
+    double newDt = (double)sec + ( (double)microsec / (1000.0*1000.0) );
+
+    return s_averageDt += 0.5*(newDt - s_averageDt);
+}
+
+static void wait(long long delay) // in micro secs
+{
+    struct timeval last;
+    struct timeval now;
+    
+    gettimeofday(&last,NULL);
+    gettimeofday(&now,NULL);
+
+    while((now.tv_usec - last.tv_usec) < delay)
+    {
+	gettimeofday(&now,NULL);
+	if (now.tv_sec > last.tv_sec)
+	{
+	    now.tv_usec += 1000000;
+	}
+    }
+}
+
+static void drawCircle(float x, float y, float r, bool filled = true)
+{
+    u32 N = 20;
+    float dAlpha = PIx2 / (float)N;
+    float a = 0.0f;
+    filled ? glBegin(GL_POLYGON) : glBegin(GL_LINE_STRIP);
+	for (u32 i=0; i<(N+1); i++)
+	{
+	    glVertex3f(x+r*cosf(a), y+r*sinf(a), 0.f);
+	    a += dAlpha;
+	}
+    glEnd();
+}
+
+static const float drawEps = 0.003f;
+
+static void drawPoint(float x, float y, float size = drawEps)
+{
+    glBegin(GL_QUADS);
+	glVertex3f(x-size, y-size, 0.f);
+	glVertex3f(x-size, y+size, 0.f);
+	glVertex3f(x+size, y+size, 0.f);
+	glVertex3f(x+size, y-size, 0.f);
+    glEnd();
+}
+
+
+void updateCamera(const vec3* zz, const vec3* yy)
+{
+    vec3 up={0.f, 1.f, 0.f};
+    vec3 forward={0.f, 0.f, -1.f};
+
+    mtx rot;
+    matrixRotY(&rot, s_yaw);
+    vec3mtx33mulvec3(&s_cameraForward, &rot, &forward);
+
+    s_cameraForward.y = 0.f;
+    s_cameraForward.z = -cosf(s_yaw);
+    s_cameraForward.x = +sinf(s_yaw);
+
+    s_cameraDir = s_cameraForward;
+
+    veccross(&s_cameraLeft, &up, &s_cameraForward);
+    matrixRot(&rot, &s_cameraLeft, s_elev);
+    vec3mtx33mulvec3(&s_cameraDir, &rot, &s_cameraForward);
+
+    vec3 target = s_cameraPos;
+    vec3 pos;
+    vecsubscale(&pos, &target, &s_cameraDir, s_cameraRadius);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    gluLookAt(pos.x, pos.y, pos.z, target.x, target.y, target.z, up.x, up.y, up.z);
+}
+
+/*
+=================================================================
+   Constraints
+=================================================================
+*/
+
+struct Matrix2x2
+{
+	float a[2][2];
+};
+
+struct Body
+{
+	float rot;
+	vec3 pos;
+	vec3 v;
+	float w;
+	float mass;
+	float inertia;
+	float invMass;
+	float invInertia;
+	float damping;
+	float angDamping;
+};
+
+void BodyInit(Body* body, float mass=0.f, float inertia=0.f);
+void BodySetMass(Body* body, float mass=0.f, float inertia=0.f);
+void BodyUpdate(Body* body, float dt);
+void BodyApplyImpulse(Body* b, float impulse[2], float offset[2]);
+
+
+struct Constraint
+{
+	vec3 offset[2];  // relative offset of the point constraint, in the space of each body
+	Body* body[2];
+
+	vec3 woffset[2]; // world offset
+	vec3 werror; // world positional error
+	Matrix2x2 response;
+};
+
+// A helper class for drawing purposes
+struct CapsuleBody
+{
+	Body body;
+	float radius;
+	float length;
+};
+
+
+static void CapsuleBodyDraw(CapsuleBody* cap, vec4* colour)
+{
+	mtx m;
+	matrixRotZ(&m, cap->body.rot);
+	veccpy((vec3*)&m.v[3], &cap->body.pos);
+	glPushMatrix();
+	dlMultMatrix(&m);
+	vec3 pos0 = {+cap->radius, -0.5f*cap->length, 0.f};
+	vec3 pos1 = {+cap->radius, +0.5f*cap->length, 0.f};
+	vec3 pos2 = {-cap->radius, -0.5f*cap->length, 0.f};
+	vec3 pos3 = {-cap->radius, +0.5f*cap->length, 0.f};
+	vec3 pos4 = {0.f, -0.5f*cap->length - cap->radius, 0.f};
+	vec3 pos5 = {0.f, +0.5f*cap->length + cap->radius, 0.f};
+	dlDrawLine(&pos0, &pos1, colour);
+	dlDrawLine(&pos1, &pos5, colour);
+	dlDrawLine(&pos5, &pos3, colour);
+	dlDrawLine(&pos3, &pos2, colour);
+	dlDrawLine(&pos2, &pos4, colour);
+	dlDrawLine(&pos4, &pos0, colour);
+	glPopMatrix();
+}
+
+void BodyInit(Body* body, float mass, float inertia)
+{
+	veczero(&body->pos);
+	body->rot = 0.f;
+	veczero(&body->v);
+	body->w = 0.f;
+	BodySetMass(body, mass, inertia);
+	body->damping = 0.1f;
+	body->angDamping = 0.1f;
+}
+
+void BodySetMass(Body* body, float mass, float inertia)
+{
+	body->mass = mass;
+	body->inertia = inertia;
+	body->invMass = mass>0.f ? 1.f/mass : 0.f;
+	body->invInertia = inertia>0.f ? 1.f/inertia : 0.f;
+}
+
+void BodyUpdate(Body* body, float dt)
+{
+	vecaddscale(&body->pos, &body->pos, &body->v, dt); 
+	body->rot += body->w * dt;
+	float damping = MAX(0.f, 1.f - dt*body->damping);
+	float angDamping = MAX(0.f, 1.f - dt*body->angDamping);
+	vecscale(&body->v, &body->v, damping);
+	body->w *= angDamping;
+}
+
+void BodyApplyImpulse(Body* b, float impulse[2], float offset[2])
+{
+	b->v.x += impulse[0] * b->invMass;
+	b->v.y += impulse[1] * b->invMass;
+	b->w += b->invInertia * (offset[0]*impulse[1] - offset[1]*impulse[0]);
+}
+
+void BodyAddToResponseMatrix(Matrix2x2* response, Body* b, float rx, float ry)
+{
+	// rx, ry, is the world offset to the point where the impulse would be applied
+	// in the literature this is JMJ^T
+	response->a[0][0] += b->invMass + b->invInertia * SQR(ry);
+	response->a[0][1] += -b->invInertia * rx*ry;
+	response->a[1][0] += -b->invInertia * rx*ry;
+	response->a[1][1] += b->invMass + b->invInertia * SQR(rx);
+}
+
+
+void Matrix2x2Invert(Matrix2x2* out, Matrix2x2* in)
+{
+	const float a11 = in->a[0][0];
+	const float a12 = in->a[0][1];
+	const float a21 = in->a[1][0];
+	const float a22 = in->a[1][1];
+
+	float det = a11*a22 - a12*a21;
+	if (det==0.f)
+	{
+		out->a[0][0] = 0.f;
+		out->a[0][1] = 0.f;
+		out->a[1][0] = 0.f;
+		out->a[1][1] = 0.f;
+	}
+	else
+	{
+		out->a[0][0] = +a22/det;
+		out->a[0][1] = -a12/det;
+		out->a[1][0] = -a21/det;
+		out->a[1][1] = +a11/det;
+	}
+}
+
+void Matrix2x2Mul(float out[2], const Matrix2x2* m, float in[2])
+{
+	float a = m->a[0][0] * in[0] + m->a[0][1] * in[1];
+	float b = m->a[1][0] * in[0] + m->a[1][1] * in[1];
+	out[0] = a;
+	out[1] = b;
+}
+
+
+void GetErrorVelocity(float eV[2], Constraint* c, float erp=0.f)
+{
+	// In the literature this is dC/dt or J*v
+	Body* b0 = c->body[0];
+	Body* b1 = c->body[1];
+	eV[0] = (b1->v.x - b1->w*c->woffset[1].x) - (b0->v.x - b0->w*c->woffset[1].x) + erp * c->werror.x;
+	eV[1] = (b1->v.y + b1->w*c->woffset[1].y) - (b0->v.y + b0->w*c->woffset[1].y) + erp * c->werror.y;
+}
+
+void ConstraintDraw(Constraint* c)
+{
+	mtx bodyMat;
+	mtx m;
+    matrixIdent(&m);
+
+	for (int i=0; i<2; i++)
+	{
+		matrixRotZ(&bodyMat, c->body[i]->rot);
+		veccpy((vec3*)&bodyMat.v[3], &c->body[i]->pos);
+		glPushMatrix();
+		dlMultMatrix(&bodyMat);
+		veccpy((vec3*)&m.v[3], &c->offset[i]);
+		glPushMatrix();
+		dlMultMatrix(&m);
+		dlDrawCircle(0.f, 0.f, 0.01f, false);
+		glPopMatrix();
+		glPopMatrix();
+	}
+}
+
+void ConstraintPrepare(Constraint* c, float dt)
+{
+	vec3 p0, p1;
+	mtx rot;
+
+	// Calculate the world offset
+	for (int i=0; i<2; i++)
+	{
+		matrixRotZ(&rot, c->body[i]->rot);
+		vec3mtx33mulvec3(&c->woffset[i], &rot, &c->offset[i]);
+	}
+
+	// Calculate the world positional error
+	vecadd(&p0, &c->body[0]->pos, &c->woffset[0]);
+	vecadd(&p1, &c->body[1]->pos, &c->woffset[1]);
+	vecsub(&c->werror, &p1, &p0);
+	vecscale(&c->werror, &c->werror, 1.f/dt);
+
+	// Calculate the response matrix
+	c->response.a[0][0] = c->response.a[0][1] = c->response.a[1][0] = c->response.a[1][1] = 0;
+	BodyAddToResponseMatrix(&c->response, c->body[0], c->woffset[0].x, c->woffset[0].y);
+	BodyAddToResponseMatrix(&c->response, c->body[1], c->woffset[1].x, c->woffset[1].y);
+	
+	Matrix2x2Invert(&c->response, &c->response);
+}
+
+void ConstraintSolve(float solution[2], Constraint* c)
+{
+	float eV[2];
+	GetErrorVelocity(eV, c, 0.8f);
+	Matrix2x2Mul(solution, &c->response, eV);
+}
+
+//! void ConstraintSolve2(float solution[2], Constraint* c, Body* b)
+//! {
+//! 	// Calculate the k matrix
+//! 	Matrix2x2 k;
+//! 	Body copy = *b;
+//! 	float e[2];
+//! 	copy.w = 0.f;
+//! 	veczero(&copy.v);
+//! 	float pos[2] = {c->rx, c->ry};
+//! 	float dir[2] = {1.f, 0.f};
+//! 	BodyApplyImpulse(&copy, dir, pos);
+//! 	GetErrorVelocity(e, c, &copy);
+//! 	k.a[0][0] = e[0];
+//! 	k.a[1][0] = e[1];
+//! 
+//! 	dir[0] = 0.f;
+//! 	dir[1] = 1.f;
+//! 	copy.w = 0.f;
+//! 	veczero(&copy.v);
+//! 	BodyApplyImpulse(&copy, dir, pos);
+//! 	GetErrorVelocity(e, c, &copy);
+//! 	k.a[0][1] = e[0];
+//! 	k.a[1][1] = e[1];
+//! 
+//! 	Matrix2x2Invert(&k, &k);
+//! 	GetErrorVelocity(e, c, b, 0.8f);
+//! 
+//! 	// solution
+//! 	Matrix2x2Mul(solution, &k, e);
+//! 	solution[0] = -solution[0];
+//! 	solution[1] = -solution[1];
+//! }
+//! 
+//! void ConstraintSolve3(float solution[2], Constraint* c, Body* b)
+//! {
+//! 	// OLD STYLE MESS
+//! 	float eV[2];
+//! 	float eV2[2];
+//! 	GetErrorVelocity(eV, c, b);
+//! 
+//! 	// Apply an impulse in the direction of eV;
+//! 	float len = sqrtf(SQR(eV[0]) + SQR(eV[1]));
+//! 	if (len>0.f)
+//! 	{
+//! 		float dir[2] = {-eV[0]/len, -eV[1]/len};
+//! 		//float dir[2] = {-eV[0], -eV[1]};
+//! 		Body copy = *b;
+//! 		copy.w = 0.f;
+//! 		veczero(&copy.v);
+//! 		float pos[2] = {c->rx, c->ry};
+//! 		BodyApplyImpulse(&copy, dir, pos);
+//! 		GetErrorVelocity(eV2, c, &copy);
+//! 		//float denominator = eV2[0]*dir[0] + eV2[1]*dir[1];
+//! 		float denominator = sqrtf(SQR(eV2[0]) + SQR(eV2[1]));
+//! 		//solution[0] = len*len*dir[0]/(denominator);
+//! 		//solution[1] = len*len*dir[1]/(denominator);
+//! 		solution[0] = len*dir[0]/(denominator);
+//! 		solution[1] = len*dir[1]/(denominator);
+//! 	}
+//! }
+
+
+struct Simulation
+{
+public:
+	void Init();
+	void Draw();
+	void Update(float dt);
+
+public:
+	Body m_static;
+	CapsuleBody m_cap[2];
+	Constraint m_constraint[2];
+};
+
+
+void Simulation::Init()
+{
+	const float radius = 0.05f;
+	const float length = 0.3f;
+	const float mass = 1.f;
+	const float inertia = 0.1f;
+	const float z = 1.f;
+	const vec3 topOfChain = {0.f, 1.5f, z};
+	const vec3 capsuleOffset = {0.f, radius + 0.5f*length, 0.f};
+	
+	// Static/Kinematic world body
+	BodyInit(&m_static);
+
+	// Body 0
+	BodyInit(&m_cap[0].body, mass, inertia);
+	vecsub(&m_cap[0].body.pos, &topOfChain, &capsuleOffset);
+	m_cap[0].body.rot = 0.f;
+	vecset(&m_cap[0].body.v, 0.f, 0.f, 0.f);
+	m_cap[0].body.w = 3.f;
+	m_cap[0].radius = radius;
+	m_cap[0].length = length;
+	
+	/////////////////////////////////////////////
+	// Constraint 1 - attach body to static world
+	/////////////////////////////////////////////
+	m_constraint[0].body[0] = &m_static;
+	m_constraint[0].offset[0] = topOfChain;
+	m_constraint[0].body[1] = &m_cap[0].body;
+	m_constraint[0].offset[1] = capsuleOffset;
+
+	
+	// // Body 1
+	// BodyInit(&m_cap[1].body, 1.f, 0.1f);
+	// vecset(&m_cap[1].body.pos, 0.f,1.f,1.f);
+	// m_cap[1].body.rot = 0.f;
+	// vecset(&m_cap[1].body.v, 0.f, 0.f, 0.f);
+	// m_cap[1].body.w = 3.f;
+	// m_cap[1].radius = 0.05f;
+	// m_cap[1].length = 0.3f;
+
+}
+
+void Simulation::Draw()
+{
+	vec4 colour = {1.f, 1.f, 1.f, 1.f};
+	CapsuleBodyDraw(&m_cap[0], &colour);
+
+	ConstraintDraw(&m_constraint[0]);
+
+	vec4 red = {1.f, 0.f, 0.f, 1.f};
+	vec4 green = {0.f, 1.f, 0.f, 1.f};
+	vec4 blue = {0.f, 0.f, 1.f, 1.f};
+
+	vec3 a0 = {0.f, 0.f, 0.f};
+	vec3 ax = {1.f, 0.f, 0.f};
+	vec3 ay = {0.f, 1.f, 0.f};
+	vec3 az = {0.f, 0.f, 1.f};
+	dlDrawLine(&a0, &ax, &red);
+	dlDrawLine(&a0, &ay, &green);
+	dlDrawLine(&a0, &az, &blue);
+}
+
+void Simulation::Update(float dt)
+{
+	// Add gravity
+	m_cap[0].body.v.y -= 10.f * dt;
+	
+	// Randomly poke the body
+	static float time = 0.f;
+	time +=dt;
+	if (time > 1.5f)
+	{
+		time = 0.f;
+		if (frnd()>0.5f)
+			m_cap[0].body.v.x += 2.f;
+		else
+			m_cap[0].body.v.x -= 2.f;
+	}
+
+	ConstraintPrepare(&m_constraint[0], dt);
+
+	for (int repeat=0; repeat<1; repeat++)
+	{
+		float impulse[2];
+		ConstraintSolve(impulse, &m_constraint[0]);
+		//impulse[0] *= 0.4f;
+		//impulse[1] *= 0.4f;
+		BodyApplyImpulse(m_constraint[0].body[0], impulse, (float*)&m_constraint[0].woffset[0]);
+		impulse[0] = -impulse[0];
+		impulse[1] = -impulse[1];
+		BodyApplyImpulse(m_constraint[0].body[1], impulse, (float*)&m_constraint[0].woffset[1]);
+	}
+
+	BodyUpdate(&m_cap[0].body, dt);
+}
+
+
+Simulation g_simulation;
+
+static void start()
+{
+	g_simulation.Init();
+
+    GLfloat light_ambient[] = { 0.2, 0.2, 0.2, 1.0 };
+    GLfloat light_diffuse[] = { 1.0, 1.0, 1.0, 1.0 };
+    GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };
+    /*	light_position is NOT default value	*/
+    GLfloat light_position0[] = { 1.0, 10.0, 1.0, 0.0 };
+    GLfloat light_position1[] = { -1.0, -10.0, -1.0, 0.0 };
+  
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position0);
+  
+    glLightfv(GL_LIGHT1, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT1, GL_SPECULAR, light_specular);
+    glLightfv(GL_LIGHT1, GL_POSITION, light_position1);
+
+    //glEnable(GL_LIGHTING);
+    //glEnable(GL_LIGHT0);
+    //glEnable(GL_LIGHT1);
+
+    glShadeModel(GL_SMOOTH);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+
+    glClearColor(0.3,0.3,0.3,0);
+
+    //  glEnable(GL_CULL_FACE);
+    //  glCullFace(GL_BACK);
+}
+
+static void keyboard(unsigned char key, int x, int y)
+{
+    if (key==27) exit(0);
+
+    vec3 up={0.f, 1.f, 0.f};
+
+    if (key=='q') vecaddscale(&s_cameraPos, &s_cameraPos, &up, -0.1f);
+    if (key=='e') vecaddscale(&s_cameraPos, &s_cameraPos, &up, +0.1f);
+
+    if (key=='w')
+    {
+	s_cameraRadius -= 0.1f;
+    }
+    if (key=='s')
+    {
+	s_cameraRadius += 0.1f;
+    }
+
+    if (key=='a')
+    {
+	vecaddscale(&s_cameraPos, &s_cameraPos, &s_cameraLeft, +0.1f);
+    }
+    if (key=='d')
+    {
+	vecaddscale(&s_cameraPos, &s_cameraPos, &s_cameraLeft, -0.1f);
+    }
+
+    glutPostRedisplay();
+}
+
+static void animateScene()
+{
+	float dt = timerGetTickSinceLastUUpdate(&g_time);
+	if (dt < 10e-3) return;
+	timerUpdate(&g_time);
+	
+	g_simulation.Update(dt);
+
+	// keep ticking
+    glutPostRedisplay();
+}
+
+
+void render()
+{
+	animateScene();
+
+	updateCamera(&s_cameraPos, &s_cameraDir);
+
+	u32 N = 10;
+	float width=7.f;
+	float dx = width/(float)(N-1);
+	float dy = width/(float)(N-1);
+	float y=-width*0.5f;
+	float x=-width*0.5f;
+
+	glColor3f(0.2f, 0.2f, 0.2f);
+	for (u32 i=0; i<N; i++)
+	{
+		vec3 from = {x, 0.f, -y};
+		vec3 to = {x, 0.f, +y};
+		dlDrawLine(&from, &to);
+		x += dx;
+	}
+
+	y=-width*0.5f;
+	x=-width*0.5f;
+	for (u32 i=0; i<N; i++)
+	{
+		vec3 from = {+x, 0.f, y};
+		vec3 to = {-x, 0.f, y};
+		dlDrawLine(&from, &to);
+		y += dy;
+	}
+
+	g_simulation.Draw();
+}
+
+
+
+static void display()
+{
+    // clear the window
+    glClearColor (0.5,0.5,0.5,0);
+    glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // go to GL_MODELVIEW matrix mode and set the camera
+    glMatrixMode (GL_MODELVIEW);
+    glLoadIdentity();
+
+    // leave openGL in a known state - flat shaded white, no textures
+    glDisable (GL_TEXTURE_2D);
+    glShadeModel (GL_FLAT);
+    glDisable (GL_DEPTH_TEST);
+    glDepthFunc (GL_LESS);
+    glColor4f (1.f,1.f,1.f,1.f);
+
+    render();
+
+    glutSwapBuffers();
+}
+
+static void reshape(GLint width, GLint height)
+{
+    s_width = width;
+    s_height = height;
+    
+    // setup viewport
+    glViewport (0,0,s_width,s_height);
+    glMatrixMode (GL_PROJECTION);
+    glLoadIdentity();
+    const float vnear = 0.01f;
+    const float vfar = 100.0f;
+    const float k = 0.8f;     // view scale, 1 = +/- 45 degrees
+    if (s_width >= s_height) {
+	float k2 = float(s_height)/float(s_width);
+	glFrustum (-vnear*k,vnear*k,-vnear*k*k2,vnear*k*k2,vnear,vfar);
+    }
+    else {
+	float k2 = float(s_width)/float(s_height);
+	glFrustum (-vnear*k*k2,vnear*k*k2,-vnear*k,vnear*k,vnear,vfar);
+    }
+    glutPostRedisplay();
+}
+
+static void initGraphics()
+{
+}
+
+static void mouseButton(int button, int state, int x, int y)
+{
+    // 0 == down, 1 == up
+    int mouseDown = !state;
+
+    if (!s_mouseDown && mouseDown)
+    {
+	s_lastMouseX = x;
+	s_lastMouseY = y;
+    }
+    s_mouseDown = mouseDown;
+}
+
+static void mouseMotion(int x, int y)
+{
+    if (!s_mouseDown) return;
+
+    float dx = (float)(x - s_lastMouseX)/(float)s_width;
+    float dy = (float)(y - s_lastMouseY)/(float)s_height;
+
+    s_lastMouseX = x;
+    s_lastMouseY = y;
+    
+    s_yaw += dx*1.0f;
+    s_elev += dy*1.0f;
+
+    if (s_elev > 0.9*PI_D2) s_elev = 0.9*PI_D2;
+    if (s_elev < -0.9*PI_D2) s_elev = -0.9*PI_D2;
+
+    glutPostRedisplay();
+}
+
+
+int main (int argc, char **argv)
+{
+    start();
+
+    // GLUT Window Initialization:
+    glutInit (&argc, argv);
+    glutInitWindowSize (s_width, s_height);
+    glutInitDisplayMode ( GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
+    glutCreateWindow ("triangles to quad mesh");
+
+    // Initialize OpenGL graphics state
+    initGraphics();
+	
+	timerUpdate(&g_time);
+
+    // Register callbacks:
+    glutDisplayFunc (display);
+    glutReshapeFunc (reshape);
+    glutKeyboardFunc (keyboard);
+    glutMouseFunc (mouseButton);
+    glutMotionFunc (mouseMotion);
+    glutIdleFunc (animateScene);
+
+    // Turn the flow of control over to GLUT
+    glutMainLoop ();
+
+    //printf("average dt was = %f, and FPS = %f\n", s_averageDt, 1.f/s_averageDt);
+
+    return 0;
+}
+
+

@@ -1,0 +1,6 @@
+#! /bin/make
+
+SOURCES=wheel.cpp
+TARGET=wheel
+
+include ../Makefile

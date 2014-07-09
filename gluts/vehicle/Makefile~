@@ -1,0 +1,7 @@
+#! /bin/make
+
+SOURCES=main.cpp
+SOURCES=1d.cpp
+TARGET=vehicle
+
+include ../Makefile
